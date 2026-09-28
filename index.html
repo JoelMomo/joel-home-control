@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101416">
+  <meta name="description" content="Control remoto seguro de Casa de Joël">
+  <title>Casa de Joël</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="./vendor/mqtt.min.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+<main class="shell">
+  <header class="top">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 10.5 12 4l8 6.5V20H5.5A1.5 1.5 0 0 1 4 18.5Z"/><path d="M9.5 20v-6h5v6"/></svg>
+      </div>
+      <div><h1>Casa de Joël</h1><div class="subtitle">Control remoto</div></div>
+    </div>
+    <button class="iconBtn" id="settingsBtn" aria-label="Configurar acceso" title="Configurar acceso">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.86 2.86-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.5v-.1A1.7 1.7 0 0 0 8.4 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.86-2.86.06-.06A1.7 1.7 0 0 0 4 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2V9.5h.3A1.7 1.7 0 0 0 4 8.4a1.7 1.7 0 0 0-.34-1.88L3.6 6.46 6.46 3.6l.06.06A1.7 1.7 0 0 0 8.4 4 1.7 1.7 0 0 0 9.5 2.3V2h4.1v.3A1.7 1.7 0 0 0 15 4a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.86 2.86-.06.06A1.7 1.7 0 0 0 19.4 8.4a1.7 1.7 0 0 0 1.7 1.1h.9v4.1h-.9a1.7 1.7 0 0 0-1.7 1.4Z"/></svg>
+    </button>
+  </header>
+
+  <section class="card hero">
+    <div class="status" id="espStatus"><span class="dot"></span><span id="statusText">Sin configurar</span></div>
+    <div class="powerWrap">
+      <div class="ring"></div>
+      <button class="power" id="powerBtn" aria-label="Encender Joel-PC">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.35 6.35a8 8 0 1 0 11.3 0"/></svg>
+      </button>
+    </div>
+    <div class="heroTitle">Joel-PC</div>
+    <div class="heroText" id="heroText">Configura el acceso remoto</div>
+    <div class="route" id="routeText">Internet · HiveMQ Cloud · ESP32</div>
+  </section>
+  <div class="grid">
+    <section class="mini"><div class="label">ESP32</div><div class="value" id="espValue">—</div></section>
+    <section class="mini"><div class="label">Wi-Fi casa</div><div class="value" id="rssiValue">—</div></section>
+    <section class="mini"><div class="label">Broker</div><div class="value" id="brokerValue">Desconectado</div></section>
+    <section class="mini"><div class="label">Última señal</div><div class="value" id="lastSeenValue">—</div></section>
+  </div>
+  <div class="foot">Acceso cifrado mediante WSS/TLS · No requiere puertos abiertos</div>
+</main>
+
+<div class="toast" id="toast" role="status"></div>
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <div class="sheet">
+    <h2 id="settingsTitle">Acceso remoto</h2>
+    <p>Usa una credencial exclusiva para este controlador. La contraseña no forma parte del código de la aplicación.</p>
+    <form id="settingsForm">
+      <label for="username">Usuario HiveMQ</label>
+      <input id="username" autocomplete="username" value="joel-wol-controller" required>
+      <label for="password">Contraseña HiveMQ</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <label class="check"><input id="remember" type="checkbox" checked><span>Recordar en este dispositivo</span></label>
+      <button class="primary" type="submit">Guardar y conectar</button>
+    </form>
+    <button class="secondary" id="installBtn" type="button" hidden>Instalar como app</button>
+    <button class="dangerLink" id="forgetBtn" type="button">Olvidar credenciales</button>
+    <button class="link" id="cancelBtn" type="button">Cerrar</button>
+  </div>
+</div>
+</body>
+</html>
