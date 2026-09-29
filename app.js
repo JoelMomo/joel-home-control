@@ -190,10 +190,13 @@ function connectController(force = false) {
     brokerValue.textContent = "Desconectado";
   });
 
-  client.on("error", () => {
+  client.on("error", (err) => {
+    const detail = err && err.message ? err.message : "Error MQTT desconocido";
     brokerValue.textContent = "Error";
     setStatus("offline", "Error de acceso");
-    heroText.textContent = "Comprueba las credenciales";
+    heroText.textContent = detail;
+    showToast(detail, true);
+    console.error("MQTT error:", err);
   });
 
   client.on("message", onMessage);
