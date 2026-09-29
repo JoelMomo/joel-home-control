@@ -21,6 +21,8 @@ const brokerValue = $("#brokerValue");
 const espValue = $("#espValue");
 const rssiValue = $("#rssiValue");
 const lastSeenValue = $("#lastSeenValue");
+const pcValue = $("#pcValue");
+const agentValue = $("#agentValue");
 const overlay = $("#overlay");
 const shutdownOverlay = $("#shutdownOverlay");
 const toast = $("#toast");
@@ -158,6 +160,13 @@ function updateStatusView(payload) {
 function updatePcStatusView(payload) {
   if (typeof payload.online !== "boolean") return;
   pcOnline = payload.online;
+  const version = typeof payload.agentVersion === "string" ? payload.agentVersion : "";
+  pcValue.textContent = pcOnline ? "Online" : "Offline";
+  if (version) {
+    agentValue.textContent = "v" + version + (pcOnline ? " · Online" : " · Sin señal");
+  } else {
+    agentValue.textContent = pcOnline ? "Online" : "Sin señal";
+  }
   renderPowerState();
 }
 
@@ -425,6 +434,8 @@ $("#forgetBtn").addEventListener("click", () => {
   espValue.textContent = "—";
   rssiValue.textContent = "—";
   lastSeenValue.textContent = "—";
+  pcValue.textContent = "—";
+  agentValue.textContent = "—";
   heroText.textContent = "Configura el acceso remoto";
   showToast("Credenciales eliminadas de este dispositivo");
 });
