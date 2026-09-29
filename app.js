@@ -4,7 +4,10 @@ const BROKER_URL = "wss://9ae4e5d0c13a43c98c4e4b7f730851d9.s1.eu.hivemq.cloud:88
 const TOPIC_WAKE = "domotica/wol/v1/cmd/wake";
 const TOPIC_ACK = "domotica/wol/v1/esp32/ack";
 const TOPIC_STATUS = "domotica/wol/v1/esp32/status";
-const DEFAULT_USER = "joel-wol-controller";
+const TOPIC_PC_STATUS = "domotica/wol/v1/pc/status";
+const TOPIC_PC_ACK = "domotica/wol/v1/pc/ack";
+const TOPIC_SHUTDOWN = "domotica/wol/v1/pc/cmd/shutdown";
+const DEFAULT_USER = "joel-wol-esp32";
 const STORE_USER = "joelHomeMqttUser";
 const STORE_PASS = "joelHomeMqttPass";
 const STORE_REMEMBER = "joelHomeRemember";
@@ -19,14 +22,19 @@ const espValue = $("#espValue");
 const rssiValue = $("#rssiValue");
 const lastSeenValue = $("#lastSeenValue");
 const overlay = $("#overlay");
+const shutdownOverlay = $("#shutdownOverlay");
 const toast = $("#toast");
 
 let client = null;
 let pendingWake = null;
+let pendingShutdown = null;
+let pcOnline = null;
 let lastStatusAt = 0;
 let lastEspOnline = false;
 let toastTimer = null;
 let installPrompt = null;
+
+powerBtn.disabled = true;
 
 function randomHex(bytes = 16) {
   const data = new Uint8Array(bytes);
@@ -88,6 +96,42 @@ function closeSettings() {
   overlay.classList.remove("show");
 }
 
+function openShutdownConfirm() {
+  shutdownOverlay.classList.add("show");
+}
+
+function closeShutdownConfirm() {
+  shutdownOverlay.classList.remove("show");
+}
+
+function renderPowerState() {
+  const busy = Boolean(pendingWake || pendingShutdown);
+  powerBtn.classList.toggle("shutdown", pcOnline === true && !busy);
+
+  if (busy) {
+    powerBtn.disabled = true;
+    return;
+  }
+
+  if (!lastEspOnline) {
+    powerBtn.disabled = true;
+    if (loadCredentials().password) heroText.textContent = "ESP32 no disponible";
+    return;
+  }
+
+  powerBtn.disabled = false;
+  if (pcOnline === true) {
+    powerBtn.setAttribute("aria-label", "Apagar Joel-PC");
+    heroText.textContent = "Encendido · pulsa para apagar";
+  } else if (pcOnline === false) {
+    powerBtn.setAttribute("aria-label", "Encender Joel-PC");
+    heroText.textContent = "Apagado · pulsa para encender";
+  } else {
+    powerBtn.setAttribute("aria-label", "Encender Joel-PC");
+    heroText.textContent = "Esperando estado de Joel-PC…";
+  }
+}
+
 function disconnectClient() {
   if (client) {
     try { client.end(true); } catch (_) {}
@@ -102,30 +146,73 @@ function updateStatusView(payload) {
   if (lastEspOnline) {
     setStatus("online", "ESP32 en línea");
     espValue.textContent = "Online";
-    heroText.textContent = "Listo para encender";
   } else {
     setStatus("offline", "ESP32 sin conexión");
     espValue.textContent = "Offline";
-    heroText.textContent = "ESP32 no disponible";
   }
   rssiValue.textContent = Number.isFinite(payload.rssi) ? payload.rssi + " dBm" : "—";
   lastSeenValue.textContent = "Ahora";
+  renderPowerState();
+}
+
+function updatePcStatusView(payload) {
+  if (typeof payload.online !== "boolean") return;
+  pcOnline = payload.online;
+  renderPowerState();
 }
 
 function handleAck(payload) {
   if (!pendingWake || payload.id !== pendingWake.id) return;
   clearTimeout(pendingWake.timer);
   pendingWake = null;
-  powerBtn.disabled = false;
   powerBtn.classList.remove("busy");
   powerBtn.classList.add("success");
-  heroText.textContent = "Señal de encendido enviada";
+  powerBtn.disabled = true;
+  heroText.textContent = "Señal de encendido enviada · esperando Joel-PC…";
   showToast("ESP32 ha enviado el Wake-on-LAN a Joel-PC");
   if (navigator.vibrate) navigator.vibrate(35);
   setTimeout(() => {
     powerBtn.classList.remove("success");
-    if (lastEspOnline) heroText.textContent = "Listo para encender";
+    renderPowerState();
   }, 2400);
+}
+
+function handlePcAck(payload) {
+  if (!pendingShutdown || payload.id !== pendingShutdown.id) return;
+
+  const result = String(payload.result || "");
+  if (result === "accepted" || result === "duplicate") {
+    clearTimeout(pendingShutdown.timer);
+    pendingShutdown = null;
+    powerBtn.classList.remove("busy");
+    powerBtn.disabled = true;
+    heroText.textContent = "Apagado aceptado · esperando a Windows…";
+    showToast("Joel-PC ha aceptado la orden de apagado");
+    if (navigator.vibrate) navigator.vibrate(35);
+    setTimeout(() => {
+      if (pcOnline === true && !pendingShutdown) {
+        showToast("Joel-PC sigue encendido; el apagado puede haber sido bloqueado", true);
+        renderPowerState();
+      }
+    }, 20000);
+    return;
+  }
+
+  if (["pc_offline", "agent_unconfigured", "busy", "expired", "failed"].includes(result)) {
+    clearTimeout(pendingShutdown.timer);
+    pendingShutdown = null;
+    powerBtn.classList.remove("busy");
+    if (result === "pc_offline") pcOnline = false;
+    renderPowerState();
+    const messages = {
+      pc_offline: "Joel-PC ya no está disponible",
+      agent_unconfigured: "El agente de Windows no está configurado",
+      busy: "Ya hay otra orden pendiente",
+      expired: "La orden de apagado ha caducado",
+      failed: "Windows no pudo iniciar el apagado"
+    };
+    showToast(messages[result] || "No se pudo apagar Joel-PC", true);
+  }
 }
 
 function onMessage(topic, raw) {
@@ -135,8 +222,16 @@ function onMessage(topic, raw) {
     updateStatusView(payload);
     return;
   }
+  if (topic === TOPIC_PC_STATUS) {
+    updatePcStatusView(payload);
+    return;
+  }
   if (topic === TOPIC_ACK && payload.result === "sent") {
     handleAck(payload);
+    return;
+  }
+  if (topic === TOPIC_PC_ACK) {
+    handlePcAck(payload);
   }
 }
 
@@ -172,7 +267,7 @@ function connectController(force = false) {
     brokerValue.textContent = "Conectado";
     setStatus("waiting", "Esperando ESP32…");
     heroText.textContent = "Esperando estado de casa…";
-    client.subscribe([TOPIC_STATUS, TOPIC_ACK], { qos: 1 }, (err) => {
+    client.subscribe([TOPIC_STATUS, TOPIC_ACK, TOPIC_PC_STATUS, TOPIC_PC_ACK], { qos: 1 }, (err) => {
       if (err) showToast("No se pudo suscribir al estado remoto", true);
     });
   });
@@ -213,7 +308,7 @@ function sendWake() {
     connectController(true);
     return;
   }
-  if (pendingWake) return;
+  if (pendingWake || pendingShutdown || pcOnline === true) return;
 
   const id = randomHex(16);
   const ts = Math.floor(Date.now() / 1000);
@@ -225,25 +320,73 @@ function sendWake() {
 
   client.publish(TOPIC_WAKE, message, { qos: 1, retain: false }, (err) => {
     if (err) {
-      powerBtn.disabled = false;
       powerBtn.classList.remove("busy");
-      heroText.textContent = "No se pudo enviar";
       showToast("No se pudo publicar la orden", true);
+      renderPowerState();
       return;
     }
 
     const timer = setTimeout(() => {
       if (!pendingWake || pendingWake.id !== id) return;
       pendingWake = null;
-      powerBtn.disabled = false;
       powerBtn.classList.remove("busy");
-      heroText.textContent = "Sin confirmación del ESP32";
       showToast("La orden se envió, pero no llegó el ACK", true);
+      renderPowerState();
     }, 12000);
 
     pendingWake = { id, timer };
     heroText.textContent = "Esperando confirmación del ESP32…";
   });
+}
+
+function sendShutdown() {
+  closeShutdownConfirm();
+  if (!client || !client.connected || !lastEspOnline || pcOnline !== true) {
+    showToast("Joel-PC no está disponible para apagar", true);
+    renderPowerState();
+    return;
+  }
+  if (pendingWake || pendingShutdown) return;
+
+  const id = randomHex(16);
+  const ts = Math.floor(Date.now() / 1000);
+  const message = "shutdown|" + ts + "|" + id;
+
+  powerBtn.disabled = true;
+  powerBtn.classList.add("busy");
+  heroText.textContent = "Enviando orden de apagado…";
+
+  client.publish(TOPIC_SHUTDOWN, message, { qos: 1, retain: false }, (err) => {
+    if (err) {
+      powerBtn.classList.remove("busy");
+      showToast("No se pudo publicar la orden de apagado", true);
+      renderPowerState();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (!pendingShutdown || pendingShutdown.id !== id) return;
+      pendingShutdown = null;
+      powerBtn.classList.remove("busy");
+      showToast("No llegó confirmación de Joel-PC", true);
+      renderPowerState();
+    }, 12000);
+
+    pendingShutdown = { id, timer };
+    heroText.textContent = "Esperando confirmación de Windows…";
+  });
+}
+
+function handlePowerButton() {
+  if (!loadCredentials().password) {
+    openSettings();
+    return;
+  }
+  if (pcOnline === true) {
+    openShutdownConfirm();
+  } else {
+    sendWake();
+  }
 }
 
 $("#settingsForm").addEventListener("submit", (event) => {
@@ -265,11 +408,18 @@ overlay.addEventListener("click", (event) => {
   if (event.target === overlay) closeSettings();
 });
 
+$("#confirmShutdownBtn").addEventListener("click", sendShutdown);
+$("#cancelShutdownBtn").addEventListener("click", closeShutdownConfirm);
+shutdownOverlay.addEventListener("click", (event) => {
+  if (event.target === shutdownOverlay) closeShutdownConfirm();
+});
+
 $("#forgetBtn").addEventListener("click", () => {
   clearCredentials();
   disconnectClient();
   closeSettings();
   lastEspOnline = false;
+  pcOnline = null;
   lastStatusAt = 0;
   setStatus("", "Sin configurar");
   espValue.textContent = "—";
@@ -279,7 +429,7 @@ $("#forgetBtn").addEventListener("click", () => {
   showToast("Credenciales eliminadas de este dispositivo");
 });
 
-powerBtn.addEventListener("click", sendWake);
+powerBtn.addEventListener("click", handlePowerButton);
 
 setInterval(() => {
   if (!lastStatusAt) return;
@@ -289,7 +439,7 @@ setInterval(() => {
     lastEspOnline = false;
     setStatus("offline", "ESP32 sin respuesta");
     espValue.textContent = "Sin respuesta";
-    heroText.textContent = "ESP32 no disponible";
+    renderPowerState();
   }
 }, 5000);
 

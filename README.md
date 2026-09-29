@@ -1,6 +1,6 @@
 # Casa de Joël
 
-PWA estática para enviar Wake-on-LAN a Joel-PC a través de HiveMQ Cloud y el ESP32 de casa.
+PWA estática para encender, ver el estado y solicitar el apagado normal de Joel-PC a través de HiveMQ Cloud y el ESP32 de casa.
 
 ## Flujo
 
@@ -10,16 +10,16 @@ PWA (HTTPS)
   -> HiveMQ Cloud
   -> MQTT/TLS
   -> ESP32
-  -> Wake-on-LAN
-  -> Joel-PC
+  -> Wake-on-LAN -> Joel-PC (encendido)
+  -> agente local autenticado -> Windows (estado/apagado)
 ```
 
 ## Seguridad
 
 - No contiene contraseñas ni tokens privados en el repositorio.
-- La PWA solicita una credencial MQTT exclusiva del controlador.
-- La contraseña se guarda únicamente en el navegador cuando el usuario activa "Recordar".
-- El comando WoL usa timestamp + nonce aleatorio y espera un ACK del ESP32.
+- La contraseña MQTT se guarda únicamente en el navegador cuando el usuario activa "Recordar".
+- Los comandos usan timestamp + nonce aleatorio y esperan ACK del dispositivo que realmente ejecuta la acción.
+- El agente de Windows no expone puertos: sondea al ESP32 dentro de la LAN con una clave local de 256 bits.
 - No requiere abrir puertos del router.
 - La interfaz local del ESP32 sigue disponible como fallback dentro de casa.
 
@@ -28,6 +28,9 @@ PWA (HTTPS)
 - `domotica/wol/v1/cmd/wake`
 - `domotica/wol/v1/esp32/ack`
 - `domotica/wol/v1/esp32/status`
+- `domotica/wol/v1/pc/status`
+- `domotica/wol/v1/pc/cmd/shutdown`
+- `domotica/wol/v1/pc/ack`
 
 ## Dependencias
 

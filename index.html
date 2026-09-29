@@ -52,10 +52,10 @@
 <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
   <div class="sheet">
     <h2 id="settingsTitle">Acceso remoto</h2>
-    <p>Usa una credencial exclusiva para este controlador. La contraseña no forma parte del código de la aplicación.</p>
+    <p>La contraseña de HiveMQ se guarda solo en este navegador y no forma parte del código de la aplicación.</p>
     <form id="settingsForm">
       <label for="username">Usuario HiveMQ</label>
-      <input id="username" autocomplete="username" value="joel-wol-controller" required>
+      <input id="username" autocomplete="username" value="joel-wol-esp32" required>
       <label for="password">Contraseña HiveMQ</label>
       <input id="password" type="password" autocomplete="current-password" required>
       <label class="check"><input id="remember" type="checkbox" checked><span>Recordar en este dispositivo</span></label>
@@ -64,6 +64,15 @@
     <button class="secondary" id="installBtn" type="button" hidden>Instalar como app</button>
     <button class="dangerLink" id="forgetBtn" type="button">Olvidar credenciales</button>
     <button class="link" id="cancelBtn" type="button">Cerrar</button>
+  </div>
+</div>
+
+<div class="overlay" id="shutdownOverlay" role="dialog" aria-modal="true" aria-labelledby="shutdownTitle">
+  <div class="sheet">
+    <h2 id="shutdownTitle">¿Apagar Joel-PC?</h2>
+    <p>Windows iniciará un apagado normal. No se forzará el cierre de aplicaciones; si alguna impide el apagado, el PC puede permanecer encendido.</p>
+    <button class="dangerButton" id="confirmShutdownBtn" type="button">Apagar Joel-PC</button>
+    <button class="link" id="cancelShutdownBtn" type="button">Cancelar</button>
   </div>
 </div>
 </body>
