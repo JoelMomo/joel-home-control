@@ -122,7 +122,7 @@ function renderPowerState() {
   powerBtn.disabled = false;
   if (pcOnline === true) {
     powerBtn.setAttribute("aria-label", "Apagar Joel-PC");
-    heroText.textContent = "Encendido · pulsa para apagar";
+    heroText.textContent = "PC disponible · pulsa para apagar";
   } else if (pcOnline === false) {
     powerBtn.setAttribute("aria-label", "Encender Joel-PC");
     heroText.textContent = "Apagado · pulsa para encender";
