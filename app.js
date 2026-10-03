@@ -8,6 +8,7 @@ const TOPIC_PC_STATUS = "domotica/wol/v1/pc/status";
 const TOPIC_PC_SHUTDOWN = "domotica/wol/v1/pc/cmd/shutdown";
 const TOPIC_PC_ACK = "domotica/wol/v1/pc/ack";
 const TOPIC_NAS_WAKE = "domotica/wol/v1/nas/cmd/wake";
+const TOPIC_NAS_SHUTDOWN = "domotica/wol/v1/nas/cmd/shutdown";
 const TOPIC_NAS_ACK = "domotica/wol/v1/nas/ack";
 const TOPIC_NAS_STATUS = "domotica/wol/v1/nas/status";
 const DEFAULT_USER = "joel-wol-esp32";
@@ -103,7 +104,16 @@ function openSettings() {
 }
 
 function closeSettings() { overlay.classList.remove("show"); }
-function openShutdownConfirm() { shutdownOverlay.classList.add("show"); }
+function openShutdownConfirm(target = selectedDevice) {
+  const isNas = target === "nas";
+  shutdownOverlay.dataset.target = isNas ? "nas" : "pc";
+  $("#shutdownTitle").textContent = isNas ? "¿Apagar NAS?" : "¿Apagar Joel-PC?";
+  $("#shutdownDescription").textContent = isNas
+    ? "QTS iniciará un apagado limpio. Las copias en curso deben terminar antes de enviar esta orden."
+    : "Windows iniciará un apagado normal. No se forzará el cierre de aplicaciones; si alguna impide el apagado, el PC puede permanecer encendido.";
+  $("#confirmShutdownBtn").textContent = isNas ? "Apagar NAS" : "Apagar Joel-PC";
+  shutdownOverlay.classList.add("show");
+}
 function closeShutdownConfirm() { shutdownOverlay.classList.remove("show"); }
 
 function setDot(dot, state) {
@@ -155,9 +165,10 @@ function renderDevice() {
     if (nasOnline === true) {
       deviceStatus.className = "status online";
       statusText.textContent = "NAS en línea";
-      heroText.textContent = "Encendido y disponible";
-      powerBtn.classList.add("onlineOnly");
-      powerBtn.setAttribute("aria-label", "NAS encendido");
+      heroText.textContent = "Pulsa para apagar";
+      powerBtn.disabled = false;
+      powerBtn.classList.add("shutdown");
+      powerBtn.setAttribute("aria-label", "Apagar NAS");
       return;
     }
     if (nasOnline === false) {
@@ -267,7 +278,7 @@ function handleWakeAck(payload, target) {
 }
 
 function handlePcAck(payload) {
-  if (!pendingShutdown || payload.id !== pendingShutdown.id) return;
+  if (!pendingShutdown || pendingShutdown.target !== "pc" || payload.id !== pendingShutdown.id) return;
   const result = String(payload.result || "");
   if (result === "accepted" || result === "duplicate") {
     clearTimeout(pendingShutdown.timer);
@@ -296,6 +307,36 @@ function handlePcAck(payload) {
   }
 }
 
+function handleNasAck(payload) {
+  if (!pendingShutdown || pendingShutdown.target !== "nas" || payload.id !== pendingShutdown.id) return;
+  const result = String(payload.result || "");
+  if (result === "accepted" || result === "duplicate") {
+    clearTimeout(pendingShutdown.timer);
+    pendingShutdown = null;
+    powerBtn.classList.remove("busy");
+    heroText.textContent = "Apagado aceptado · esperando al NAS…";
+    showToast("JOEL-NAS ha aceptado la orden de apagado");
+    if (navigator.vibrate) navigator.vibrate(35);
+    return;
+  }
+
+  if (["nas_offline", "nas_unconfigured", "busy", "expired", "failed"].includes(result)) {
+    clearTimeout(pendingShutdown.timer);
+    pendingShutdown = null;
+    powerBtn.classList.remove("busy");
+    if (result === "nas_offline") nasOnline = false;
+    const messages = {
+      nas_offline: "JOEL-NAS ya está apagado",
+      nas_unconfigured: "El apagado seguro del NAS no está configurado",
+      busy: "Ya hay otra orden pendiente",
+      expired: "La orden de apagado ha caducado",
+      failed: "QTS no pudo iniciar el apagado"
+    };
+    showToast(messages[result] || "No se pudo apagar JOEL-NAS", true);
+    renderDevice();
+  }
+}
+
 function onMessage(topic, raw) {
   let payload;
   try { payload = JSON.parse(raw.toString()); } catch (_) { return; }
@@ -304,6 +345,7 @@ function onMessage(topic, raw) {
   if (topic === TOPIC_NAS_STATUS) return updateNasStatus(payload);
   if (topic === TOPIC_PC_WAKE_ACK && payload.result === "sent") return handleWakeAck(payload, "pc");
   if (topic === TOPIC_NAS_ACK && payload.result === "sent") return handleWakeAck(payload, "nas");
+  if (topic === TOPIC_NAS_ACK) return handleNasAck(payload);
   if (topic === TOPIC_PC_ACK) handlePcAck(payload);
 }
 
@@ -387,19 +429,22 @@ function sendWake(target) {
 }
 
 function sendShutdown() {
+  const target = shutdownOverlay.dataset.target === "nas" ? "nas" : "pc";
   closeShutdownConfirm();
-  if (!client || !client.connected || !lastEspOnline || pcOnline !== true || pendingWake || pendingShutdown) {
-    showToast("Joel-PC no está disponible para apagar", true);
+  const targetOnline = target === "nas" ? nasOnline === true : pcOnline === true;
+  if (!client || !client.connected || !lastEspOnline || !targetOnline || pendingWake || pendingShutdown) {
+    showToast((target === "nas" ? "JOEL-NAS" : "Joel-PC") + " no está disponible para apagar", true);
     renderDevice();
     return;
   }
   const id = randomHex(16);
   const ts = Math.floor(Date.now() / 1000);
+  const topic = target === "nas" ? TOPIC_NAS_SHUTDOWN : TOPIC_PC_SHUTDOWN;
   powerBtn.disabled = true;
   powerBtn.classList.add("busy");
   heroText.textContent = "Enviando orden de apagado…";
 
-  client.publish(TOPIC_PC_SHUTDOWN, "shutdown|" + ts + "|" + id, { qos: 1, retain: false }, err => {
+  client.publish(topic, "shutdown|" + ts + "|" + id, { qos: 1, retain: false }, err => {
     if (err) {
       powerBtn.classList.remove("busy");
       showToast("No se pudo publicar la orden de apagado", true);
@@ -407,23 +452,24 @@ function sendShutdown() {
       return;
     }
     const timer = setTimeout(() => {
-      if (!pendingShutdown || pendingShutdown.id !== id) return;
+      if (!pendingShutdown || pendingShutdown.id !== id || pendingShutdown.target !== target) return;
       pendingShutdown = null;
       powerBtn.classList.remove("busy");
-      showToast("No llegó confirmación de Joel-PC", true);
+      showToast("No llegó confirmación de " + (target === "nas" ? "JOEL-NAS" : "Joel-PC"), true);
       renderDevice();
     }, 12000);
-    pendingShutdown = { id, timer };
+    pendingShutdown = { id, target, timer };
   });
 }
 
 function handlePowerButton() {
   if (!loadCredentials().password) return openSettings();
   if (selectedDevice === "nas") {
-    if (nasOnline === false) sendWake("nas");
+    if (nasOnline === true) openShutdownConfirm("nas");
+    else if (nasOnline === false) sendWake("nas");
     return;
   }
-  if (pcOnline === true) openShutdownConfirm();
+  if (pcOnline === true) openShutdownConfirm("pc");
   else if (pcOnline === false) sendWake("pc");
 }
 

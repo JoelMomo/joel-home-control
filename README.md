@@ -5,7 +5,7 @@ PWA estática para controlar de forma remota los dispositivos de casa a través 
 ## Dispositivos
 
 - **Joel-PC**: estado, encendido mediante Wake-on-LAN y solicitud de apagado normal mediante el agente de Windows.
-- **NAS**: estado comprobado por el ESP32 y encendido mediante Wake-on-LAN. El apagado remoto se incorporará cuando el NAS tenga su configuración definitiva.
+- **NAS**: estado comprobado por el ESP32, encendido mediante Wake-on-LAN y solicitud de apagado limpio mediante un endpoint local autenticado del QNAP.
 
 ## Flujo
 
@@ -18,6 +18,7 @@ PWA (HTTPS)
       -> Wake-on-LAN -> Joel-PC
       -> Wake-on-LAN -> NAS
       -> ping LAN -> estado NAS
+      -> endpoint local autenticado QNAP -> apagado limpio NAS
       -> agente local autenticado -> estado/apagado Joel-PC
 ```
 
@@ -27,6 +28,8 @@ PWA (HTTPS)
 - La contraseña MQTT se guarda únicamente en el navegador cuando el usuario activa "Recordar".
 - Los comandos usan timestamp + nonce aleatorio y esperan ACK del dispositivo que ejecuta la acción.
 - El agente de Windows no expone puertos.
+- El token de control del NAS no forma parte de la PWA ni del repositorio: se provisiona localmente al ESP32 y al QNAP.
+- El endpoint de apagado del QNAP solo se usa dentro de la LAN.
 - No requiere abrir puertos del router.
 - La interfaz local del ESP32 permanece disponible como fallback dentro de casa.
 
@@ -44,6 +47,7 @@ PWA (HTTPS)
 
 ### NAS
 - `domotica/wol/v1/nas/cmd/wake`
+- `domotica/wol/v1/nas/cmd/shutdown`
 - `domotica/wol/v1/nas/ack`
 - `domotica/wol/v1/nas/status`
 
