@@ -1,6 +1,11 @@
 # Casa de Joël
 
-PWA estática para encender, ver el estado y solicitar el apagado normal de Joel-PC a través de HiveMQ Cloud y el ESP32 de casa.
+PWA estática para controlar de forma remota los dispositivos de casa a través del ESP32 de Wake-on-LAN.
+
+## Dispositivos
+
+- **Joel-PC**: estado, encendido mediante Wake-on-LAN y solicitud de apagado normal mediante el agente de Windows.
+- **NAS**: estado comprobado por el ESP32 y encendido mediante Wake-on-LAN. El apagado remoto se incorporará cuando el NAS tenga su configuración definitiva.
 
 ## Flujo
 
@@ -10,27 +15,37 @@ PWA (HTTPS)
   -> HiveMQ Cloud
   -> MQTT/TLS
   -> ESP32
-  -> Wake-on-LAN -> Joel-PC (encendido)
-  -> agente local autenticado -> Windows (estado/apagado)
+      -> Wake-on-LAN -> Joel-PC
+      -> Wake-on-LAN -> NAS
+      -> ping LAN -> estado NAS
+      -> agente local autenticado -> estado/apagado Joel-PC
 ```
 
 ## Seguridad
 
 - No contiene contraseñas ni tokens privados en el repositorio.
 - La contraseña MQTT se guarda únicamente en el navegador cuando el usuario activa "Recordar".
-- Los comandos usan timestamp + nonce aleatorio y esperan ACK del dispositivo que realmente ejecuta la acción.
-- El agente de Windows no expone puertos: sondea al ESP32 dentro de la LAN con una clave local de 256 bits.
+- Los comandos usan timestamp + nonce aleatorio y esperan ACK del dispositivo que ejecuta la acción.
+- El agente de Windows no expone puertos.
 - No requiere abrir puertos del router.
-- La interfaz local del ESP32 sigue disponible como fallback dentro de casa.
+- La interfaz local del ESP32 permanece disponible como fallback dentro de casa.
 
 ## Topics
 
+### Infraestructura
+- `domotica/wol/v1/esp32/status`
+
+### Joel-PC
 - `domotica/wol/v1/cmd/wake`
 - `domotica/wol/v1/esp32/ack`
-- `domotica/wol/v1/esp32/status`
 - `domotica/wol/v1/pc/status`
 - `domotica/wol/v1/pc/cmd/shutdown`
 - `domotica/wol/v1/pc/ack`
+
+### NAS
+- `domotica/wol/v1/nas/cmd/wake`
+- `domotica/wol/v1/nas/ack`
+- `domotica/wol/v1/nas/status`
 
 ## Dependencias
 

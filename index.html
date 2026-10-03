@@ -27,27 +27,42 @@
     </button>
   </header>
 
+  <nav class="devicePicker" aria-label="Dispositivos">
+    <button class="deviceTab active" type="button" data-device="pc" aria-pressed="true">
+      <span class="deviceGlyph" aria-hidden="true">PC</span>
+      <span class="deviceCopy"><strong>Joel-PC</strong><small id="pcTabState">Esperando estado</small></span>
+      <span class="deviceDot" id="pcTabDot"></span>
+    </button>
+    <button class="deviceTab" type="button" data-device="nas" aria-pressed="false">
+      <span class="deviceGlyph nasGlyph" aria-hidden="true">NAS</span>
+      <span class="deviceCopy"><strong>NAS</strong><small id="nasTabState">Esperando ESP32</small></span>
+      <span class="deviceDot" id="nasTabDot"></span>
+    </button>
+  </nav>
+
   <section class="card hero">
-    <div class="status" id="espStatus"><span class="dot"></span><span id="statusText">Sin configurar</span></div>
+    <div class="status" id="deviceStatus"><span class="dot"></span><span id="statusText">Sin configurar</span></div>
     <div class="powerWrap">
       <div class="ring"></div>
       <button class="power" id="powerBtn" aria-label="Encender Joel-PC">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v9"/><path d="M6.35 6.35a8 8 0 1 0 11.3 0"/></svg>
       </button>
     </div>
-    <div class="heroTitle">Joel-PC</div>
+    <div class="heroTitle" id="heroTitle">Joel-PC</div>
     <div class="heroText" id="heroText">Configura el acceso remoto</div>
-    <div class="route" id="routeText">Internet · HiveMQ Cloud · ESP32</div>
+    <div class="route" id="routeText">Internet · HiveMQ Cloud · ESP32 · Joel-PC</div>
   </section>
+
   <div class="grid">
     <section class="mini"><div class="label">ESP32</div><div class="value" id="espValue">—</div></section>
     <section class="mini"><div class="label">Wi-Fi casa</div><div class="value" id="rssiValue">—</div></section>
     <section class="mini"><div class="label">Broker</div><div class="value" id="brokerValue">Desconectado</div></section>
     <section class="mini"><div class="label">Última señal</div><div class="value" id="lastSeenValue">—</div></section>
     <section class="mini"><div class="label">Joel-PC</div><div class="value" id="pcValue">—</div></section>
-    <section class="mini"><div class="label">Agente Windows</div><div class="value" id="agentValue">—</div></section>
+    <section class="mini"><div class="label">NAS</div><div class="value" id="nasValue">—</div></section>
+    <section class="mini wide"><div class="label">Agente Windows</div><div class="value" id="agentValue">—</div></section>
   </div>
-  <div class="foot">Acceso cifrado mediante WSS/TLS · No requiere puertos abiertos</div>
+  <div class="foot">Acceso cifrado mediante WSS/TLS · Sin puertos abiertos</div>
 </main>
 
 <div class="toast" id="toast" role="status"></div>
